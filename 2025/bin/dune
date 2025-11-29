@@ -1,0 +1,4 @@
+(executable
+ (public_name aoc-2025)
+ (name main)
+ (libraries lib solutions unix))

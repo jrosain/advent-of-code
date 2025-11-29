@@ -1,0 +1,3 @@
+(library
+ (name lib)
+ (synopsis "My advent of code generic library of algorithms"))

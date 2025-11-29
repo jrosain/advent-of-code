@@ -1,0 +1,21 @@
+(lang dune 3.18)
+
+(name aoc-2025)
+
+(generate_opam_files true)
+
+(source
+ (github jrosain/advent-of-code))
+
+(authors "Johann Rosain <johann.rosain@ens-lyon.org>")
+
+(maintainers "Johann Rosain <johann.rosain@ens-lyon.org>")
+
+(license LICENSE)
+(package
+ (name aoc-2025)
+ (synopsis "2025 solutions of the advent of code problems")
+ (depends ocaml)
+ (tags
+  ("Advent of code" "Competitive programming")))
+
