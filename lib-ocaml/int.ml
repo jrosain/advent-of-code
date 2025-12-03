@@ -15,3 +15,6 @@ let log10 n : int =
 
 let digits n : int =
   log10 n + 1
+
+let nth_digit ~(digit : int) (n : int) : int =
+  (n / (pow 10 digit)) mod 10

@@ -10,3 +10,6 @@ val log10 : int -> int
 
 (** Number of digits of a number *)
 val digits : int -> int
+
+(** Get the nth digit of a base-10 integer *)
+val nth_digit : digit:int -> int -> int
