@@ -13,3 +13,5 @@ val pr : t -> string
 val overlap : t -> t -> bool
 
 val merge : t -> t -> t
+
+val merge_all : t list -> t list
