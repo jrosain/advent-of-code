@@ -1,19 +1,6 @@
 open Lib
 
-let parse : string list -> Coord.Set.t =
-  let parse_row (row : int) (col : int) : string -> Coord.Set.t =
-    let c = ref col in
-    let fold s x =
-      let s = if x = '@' then Coord.Set.add (Coord.make !c row) s
-              else s in
-      c := !c + 1; s
-    in
-    String.fold_left fold Coord.Set.empty in
-  let rec parse_aux (row : int) (l : string list) : Coord.Set.t =
-    match l with
-    | [] -> Coord.Set.empty
-    | x :: xs -> Coord.Set.union (parse_row row 0 x) (parse_aux (row + 1) xs) in
-  parse_aux 0
+let parse : string list -> Coord.Set.t = Coord.from_grid '@'
 
 let make_coords_map (coords : Coord.Set.t) : int Coord.Map.t =
   let init_map = Coord.Set.fold (fun c m -> Coord.Map.update c (fun _ -> Some 0) m)
