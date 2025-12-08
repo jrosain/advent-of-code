@@ -6,46 +6,43 @@ module type Point = sig
 end
 
 module MakeUF (V : Point) = struct
-  module VMap = Map.Make(V)
+  type t = { parent: (V.t, V.t) Hashtbl.t; rank: (V.t, int) Hashtbl.t }
 
-  type t = { parent: V.t VMap.t; rank: int VMap.t }
+  let empty () : t =
+    let big = 10000000 in
+    { parent = Hashtbl.create big; rank = Hashtbl.create big }
 
-  let empty : t = { parent = VMap.empty; rank = VMap.empty }
-
-  let rec find (x : V.t) (uf : t) : (V.t * t) =
-    match VMap.find_opt x uf.parent with
-    | None -> (x, { uf with parent=VMap.update x (fun _ -> Some x) uf.parent })
+  let rec find (x : V.t) (uf : t) : V.t =
+    match Hashtbl.find_opt uf.parent x with
+    | None -> Hashtbl.replace uf.parent x x; x
     | Some y -> if compare x y <> 0
                then
-                 let y, uf = find y uf in
-                 (y, { uf with parent=VMap.update x (fun _ -> Some y) uf.parent })
-               else (y, uf)
+                 let py = find y uf in
+                 Hashtbl.replace uf.parent x py; py
+               else y
 
   let unite (x : V.t) (y : V.t) (uf : t) : t =
-    let px, uf = find x uf in
-    let py, uf = find y uf in
+    let px = find x uf in
+    let py = find y uf in
     if compare px py = 0 then uf
     else
-      let rank = VMap.update px (fun n -> Some (match n with None -> 0 | Some n -> n)) uf.rank in
-      let rank = VMap.update py (fun n -> Some (match n with None -> 0 | Some n -> n)) rank in
-      let rpx = Option.get (VMap.find_opt px rank) in
-      let rpy = Option.get (VMap.find_opt py rank) in
-      if rpx < rpy then { parent=VMap.update px (fun _ -> Some py) uf.parent; rank }
-      else if rpx > rpy then { parent=VMap.update py (fun _ -> Some px) uf.parent; rank }
-      else
-        { parent=VMap.update py (fun _ -> Some px) uf.parent;
-          rank=VMap.update px (fun _ -> Some (rpx + 1)) rank }
+      let rpx = match Hashtbl.find_opt uf.rank px with
+        | Some n -> n
+        | None -> 0 in
+      let rpy = match Hashtbl.find_opt uf.rank py with
+        | Some n -> n
+        | None -> 0 in
+      if rpx < rpy then (Hashtbl.replace uf.parent px py; uf)
+      else if rpx > rpy then (Hashtbl.replace uf.parent py px; uf)
+      else (Hashtbl.replace uf.parent py px;
+            Hashtbl.replace uf.rank px (rpx + 1); uf)
 
   let connected (x : V.t) (y : V.t) (uf : t) : bool =
-    let px,_ = find x uf in
-    let py,_ = find y uf in
-    compare px py = 0
+    compare (find x uf) (find y uf) = 0
 end
 
 module Make (V : Point) = struct
   module VSet = Set.Make(V)
-  module VMap = Map.Make(V)
-
   module VPair = struct
     type t = V.t * V.t
 
@@ -56,20 +53,21 @@ module Make (V : Point) = struct
   end
 
   module VPairSet = Set.Make(VPair)
-  module CostMap = Map.Make(VPair)
 
-  type t = { edges: (V.t list) VMap.t; cost: int CostMap.t }
+  type t = { edges: (V.t, V.t list) Hashtbl.t; cost: (V.t * V.t, int) Hashtbl.t }
 
-  let empty : t = { edges=VMap.empty; cost=CostMap.empty }
+  let empty () : t =
+    let big = 10000000 in
+    { edges=Hashtbl.create big; cost=Hashtbl.create big }
+
 
   let add_directed_edge ?cost (x : V.t) (y : V.t) (graph : t) : t =
-    let edges = VMap.update x
-                  (fun ls -> Some (match ls with None -> [y] | Some ls -> y :: ls))
-                  graph.edges in
+    (match Hashtbl.find_opt graph.edges x with
+    | None -> Hashtbl.add graph.edges x [y]
+    | Some ls -> Hashtbl.replace graph.edges x (y :: ls));
     let cost = match cost with None -> 1 | Some n -> n in
-    let cost = CostMap.update (x, y)
-                 (fun _ -> Some cost) graph.cost in
-    { edges; cost }
+    Hashtbl.replace graph.cost (x,y) cost;
+    graph
 
   let add_undirected_edge ?cost (x : V.t) (y : V.t) (graph : t) : t =
     add_directed_edge ?cost y x @@ add_directed_edge ?cost x y graph
@@ -79,7 +77,7 @@ module Make (V : Point) = struct
       if VSet.mem x seen then seen
       else
         let seen = VSet.add x seen in
-        match VMap.find_opt x graph.edges with
+        match Hashtbl.find_opt graph.edges x with
         | None -> seen
         | Some ls -> List.fold_left aux seen ls in
     aux VSet.empty x
@@ -92,12 +90,12 @@ module Make (V : Point) = struct
          let res = dfs x graph in
          let xs  = List.filter (fun y -> not @@ VSet.mem y res) xs in
          res :: aux xs in
-    aux @@ fst (List.split @@ VMap.to_list graph.edges)
+    aux @@ List.of_seq (Hashtbl.to_seq_keys graph.edges)
 
   module UF = MakeUF(V)
 
   let kruskal ?steps (graph : t) : (V.t * V.t * int) list =
-    let edges = CostMap.to_list graph.cost in
+    let edges = List.of_seq (Hashtbl.to_seq graph.cost) in
     let edges = List.fast_sort (fun (_,c1) (_,c2) -> compare c1 c2) edges in
     let steps = match steps with
       | None -> max_int
@@ -116,5 +114,5 @@ module Make (V : Point) = struct
              if not @@ UF.connected x y uf
              then (x, y, c) :: mst (step + 1) seen_pairs xs (UF.unite x y uf)
              else mst (step + 1) seen_pairs xs uf in
-    mst 0 VPairSet.empty edges UF.empty
+    mst 0 VPairSet.empty edges (UF.empty())
 end
