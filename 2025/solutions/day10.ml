@@ -1,3 +1,4 @@
+
 module Mask = struct
   type t = int
 
@@ -105,51 +106,20 @@ let part1 (input : string list) : string =
   string_of_int @@ solve1 machines
 
 (** For part 2: we use linear programming. *)
-let create_problem (m : machine) : string =
-  let var k = "w" ^ string_of_int k in
-  let rec cstr vars =
-    match vars with
-    | [] -> ""
-    | v :: vs ->
-       let n = cstr vs in
-       if n = "" then v
-       else v ^ " + " ^ n in
-  let vars = List.init (List.length m.wiring) var in
-  let objective = "min: " ^ cstr vars ^ ";\n" in
+let create_problem (m : machine) : Lib.Lp.lp_problem =
+  let vars = List.init (List.length m.wiring) (fun _ -> Lib.Lp.fresh_var()) in
+  let objective = (Lib.Lp.Min, Lib.Lp.sum (List.map (fun v -> Lib.Lp.Ob v) vars)) in
   let line j =
     let target = List.nth m.joltage j in
     let cs = List.filter_map (fun l -> if List.mem j l then List.find_index (fun l' -> l = l') m.wiring else None) m.wiring in
-    let cstr = cstr @@ List.map var cs in
-    cstr ^ " = " ^ string_of_int target ^ ";" in
+    let lhs = Lib.Lp.sum @@ List.map (fun k -> Lib.Lp.Ob (List.nth vars k)) cs in
+    Lib.Lp.Bin (lhs, Lib.Lp.Eq, Lib.Lp.Ob (Lib.Lp.Int target)) in
   let cstrs = List.map line (List.init (List.length m.joltage) (fun n -> n)) in
-  let constraints = List.fold_left (fun s line -> s ^ "\n" ^ line) "" cstrs in
-  let int_cstrs = List.fold_left (fun s v -> (s ^ "int " ^ v ^ ";\n")) "" vars in
-  objective ^ constraints ^ "\n" ^ int_cstrs
+  let cstrs = List.append cstrs @@ List.map (fun v -> Lib.Lp.IsInt v) vars in
+  { objective_func=objective; constraints=cstrs }
 
 let solve2_ (m : machine) : int =
-  (* Modify this line to your instance of lp_solve *)
-  let lp_solve = "/nix/store/d3s4rdjx3sxnkx868d5xbg27ip14m8r8-lp_solve-5.5.2.11/bin/lp_solve" in
-  let problem = create_problem m in
-  let (temp_file, temp_channel) = Filename.open_temp_file "aoc10" "" in
-  at_exit (fun () -> Sys.remove temp_file);
-  Printf.fprintf temp_channel "%s" problem;
-  flush temp_channel;
-  let (read_fd, write_fd) = Unix.pipe () in
-  match Unix.fork() with
-  | 0 ->
-     Unix.close read_fd;
-     Unix.dup2 write_fd Unix.stdout;
-     Unix.close write_fd;
-     let _ = Unix.execv lp_solve [|lp_solve;"-S1";temp_file|] in exit 1
-  | _ ->
-     Unix.close write_fd;
-     let buffer = Bytes.create 1024 in
-     let _ = Unix.wait () in
-     let bytes_read = Unix.read read_fd buffer 0 (Bytes.length buffer) in
-     let output = Bytes.sub_string buffer 0 bytes_read in
-     let res = List.hd (List.rev @@ String.split_on_char ' ' output) in
-     let res = List.hd (String.split_on_char '.' res) in
-     Unix.close read_fd; int_of_string res
+  Lib.Lp.solve_objective_ilp @@ create_problem m
 
 let solve2 (ms : machine list) : int =
   List.fold_left (+) 0 @@ List.map solve2_ ms
