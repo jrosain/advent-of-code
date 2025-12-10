@@ -1,4 +1,4 @@
 (library
  (name solutions)
  (synopsis "The folder containing all of this year's solutions. One file a day.")
- (libraries lib))
+ (libraries lib unix))
