@@ -25,6 +25,9 @@ module Make (V : Point) : sig
   val add_directed_edge : ?cost:int -> V.t -> V.t -> t -> t
   val add_undirected_edge : ?cost:int -> V.t -> V.t -> t -> t
   val dfs : V.t -> t -> VSet.t
+  val topo_sort : t -> V.t list
   val connected_components : t -> VSet.t list
   val kruskal : ?steps:int -> t -> (V.t * V.t * int) list
+  val count_paths_with_cstrs : V.t list -> V.t -> V.t -> t -> int
+  val count_paths : V.t -> V.t -> t -> int
 end

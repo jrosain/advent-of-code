@@ -115,4 +115,69 @@ module Make (V : Point) = struct
              then (x, y, c) :: mst (step + 1) seen_pairs xs (UF.unite x y uf)
              else mst (step + 1) seen_pairs xs uf in
     mst 0 VPairSet.empty edges (UF.empty())
+
+  let vertices (g : t) : V.t list =
+    List.of_seq @@ Hashtbl.to_seq_keys g.edges
+
+  (* let parents (g : t) (x : V.t) : V.t list =
+       let fold ls y =
+         match Hashtbl.find_opt g.edges y with
+         | None -> ls
+         | Some l' -> if List.mem x l' then y :: ls else ls in
+       List.fold_left fold [] (vertices g) *)
+
+  let topo_sort (g : t) : V.t list =
+    let seen = VSet.empty in
+    let stack = ref [] in
+
+    let rec dfs' (seen : VSet.t) (u: V.t) : VSet.t =
+      let seen = VSet.add u seen in
+      match Hashtbl.find_opt g.edges u with
+      | None -> stack := u :: !stack; seen
+      | Some ls ->
+         let seen = List.fold_left (fun seen v -> if not @@ VSet.mem v seen then dfs' seen v else seen) seen ls in
+         stack := u :: !stack; seen
+    in
+
+    let rec aux (seen : VSet.t) (vs : V.t list) : unit =
+      match vs with
+      | [] -> ()
+      | v :: vs -> let seen = dfs' seen v in aux seen vs in
+
+    aux seen (vertices g);
+    !stack
+
+  let count_paths_with_cstrs (to_visit : V.t list) (s : V.t) (d : V.t) (graph : t) : int =
+    let dp = Hashtbl.create 100000 in
+    let to_visit = VSet.of_list to_visit in
+    let rec aux (x : V.t) : unit =
+      if x = d then ()
+      else
+        match Hashtbl.find_opt dp x with
+        | Some _ -> ()
+        | None ->
+           match Hashtbl.find_opt graph.edges x with
+           | None -> Hashtbl.add dp x (0, VSet.empty)
+           | Some next ->
+              List.iter aux next;
+              let ls = List.map (Hashtbl.find dp) next in
+              (* Keep only the paths that have the maximal set of nodes to visit *)
+              let ls' = List.filter_map (fun (n,s) -> if not @@ VSet.is_empty s then Some (n, s) else None) ls in
+              let ls =
+                if List.is_empty ls' then ls
+                else
+                  let max = List.fold_left (fun s (_,s') -> if VSet.subset s s' then s' else s) VSet.empty ls' in
+                  List.filter (fun (_,s) -> VSet.equal s max) ls' in
+              let s0 = if List.is_empty ls then VSet.empty else snd (List.hd ls) in
+              let s0 = if VSet.mem x to_visit then VSet.add x s0 else s0 in
+              (* Edge case: if the current vertex is s, we need to check that we have all the vertices *)
+              let ls = if x = s then List.filter (fun (_,s) -> VSet.equal s to_visit) ls else ls in
+              Hashtbl.add dp x (List.fold_left (+) 0 @@ List.map fst ls,s0) in
+    Hashtbl.add dp d (1, VSet.empty); aux s;
+    match Hashtbl.find_opt dp s with
+    | None -> 0
+    | Some (n,_) -> n
+
+  let count_paths (s : V.t) (d : V.t) (graph : t) : int =
+    count_paths_with_cstrs [] s d graph
 end
